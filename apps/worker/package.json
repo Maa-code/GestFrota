@@ -1,0 +1,19 @@
+{
+  "name": "@gestfrota/worker",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@gestfrota/contratos": "workspace:*",
+    "@gestfrota/dominio": "workspace:*",
+    "pg-boss": "^10.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.11.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -1,0 +1,22 @@
+import Fastify from 'fastify';
+
+const fastify = Fastify({
+  logger: true,
+});
+
+fastify.get('/health', async () => {
+  return { status: 'ok', service: 'GestFrota API', timestamp: new Date().toISOString() };
+});
+
+const start = async () => {
+  try {
+    const port = Number(process.env.PORT) || 3000;
+    await fastify.listen({ port, host: '0.0.0.0' });
+    console.log(`GestFrota API listening on http://localhost:${port}`);
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();

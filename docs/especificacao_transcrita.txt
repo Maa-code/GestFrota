@@ -1,0 +1,1018 @@
+=== PAGE 1 ===
+Projeto de Engenharia de Software — Gestão
+de Combustível e Frota Municipal
+ Nov 11, 2026  ·  @Marcos Antonio Leite Ramalho Junior
+1. Sumário executivo
+O sistema controla o ciclo completo do combustível da frota municipal, da cota ao atesto
+para pagamento, e o uso dos veículos, com dados isolados por município e trilha de
+auditoria encadeada.
+Como funciona. A Prefeitura concede cotas mensais às secretarias, que as distribuem
+aos veículos. Antes de abastecer, o motorista solicita a autorização no celular; o sistema
+confere vínculo, CNH, documentos, saldo de cota e de empenho, reserva os valores e
+emite o código ABT-AAAA-XXXXXX , válido só no posto escolhido e por tempo limitado. O
+frentista digita o código, confere a placa e registra litros, preço (nunca acima do
+contratado) e medidor; o motorista confirma no próprio aplicativo. O consumo baixa a
+reserva, a NF-e é vinculada e conferida, e o fiscal do contrato atesta o fechamento do
+período, que gera o relatório de liquidação.
+Além do abastecimento. Diário de bordo (quem estava com cada veículo e quando),
+agenda de viagens, documentos de veículos e condutores, multas com indicação do
+condutor no prazo do CTB e processo interno de ressarcimento, painel de integridade,
+transparência e relatórios.
+Decisões centrais
+TypeScript em todas as camadas, sobre PostgreSQL; arranjo C da seção 4: Supabase
+como infraestrutura, API própria como único caminho do navegador, worker pg-boss.
+Monólito modular (seção 5), com invariantes de saldo, agenda e auditoria garantidas
+pelo banco.
+Razão de cotas imutável, com reserva, consumo e liberação (6.4 e 7.2).
+Lastro financeiro: preço contratado vigente e espelho de empenhos, com bloqueio
+configurável (7.3).
+Confirmação bilateral do abastecimento e painel de integridade (7.1 e 7.7).
+Fechamento, conciliação fiscal e atesto antes da liquidação (7.4).
+Diário de bordo único como base da identificação do condutor (7.5 e 7.6).
+Correções mais importantes: D-01 (saldo gasto duas vezes), D-02 (sem empenho,
+contrato e preço), D-03 (gestor define senha alheia), D-05 (código sem vínculo e sem
+segundo fator), D-07 (sem atesto) e D-09 (CNPJ alfanumérico na chave da NF-e). Lista
+completa na seção 3.
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 1 of 16
+
+=== PAGE 2 ===
+Entrega. Primeiro o ciclo do abastecimento ponta a ponta: estrutura, frota, cotas, contrato
+e preço, autorização, confirmação, NF-e e fechamento. Depois, agenda, uso, multas,
+integridade e transparência; por fim, integrações (SEFAZ, controle externo, folha).
+Detalhe na seção 15.
+Anexos: banco_schema.sql  (estrutura completa do banco) e banco_testes.sql  (testes
+executáveis das invariantes), entregues com este documento.
+2. Premissas, escopo e regras herdadas
+O sistema será reconstruído do zero como SaaS multiente, tomando a documentação
+funcional AbasteceGov v1.0 (nov/2026) como requisito, preservando suas funções e
+regras fixas e corrigindo as falhas apontadas na seção 3. Onde este documento diverge da
+documentação original, prevalece este documento.
+Premissas adotadas
+Cada município é um ente (inquilino). Todo dado operacional pertence a um ente, e o
+isolamento entre entes é garantido no banco, não apenas na aplicação.
+A documentação original descreve padrões típicos de protótipo em Supabase (regras
+de acesso por linha, handle_new_user , has_role , funções de servidor com nomes
+em kebab-case). Isso é inferência: o reaproveitamento de código do protótipo limita-
+se ao que a seção 15 indicar.
+Equipe de desenvolvimento de um a dois programadores full-stack. A escolha de
+stack (seção 4) privilegia uma só linguagem e pouca infraestrutura para operar.
+Usuários de campo (motorista e frentista) usam celular, com predominância de
+Android e conectividade instável em postos afastados. Gestores usam computador.
+Hospedagem em território nacional. Datas e horas gravadas em timestamptz ;
+competência mensal e prazos calculados no fuso do ente.
+Escopo
+Todas as funções dos sete perfis originais, com as correções da seção 3.
+Acréscimos: contratos de fornecimento com preço contratado, espelho de empenhos,
+fechamento de período com atesto do fiscal, documentos de veículo e de condutor,
+painel de integridade (anomalias), perfis de Fiscal de Contrato e de Controle Interno,
+e geração dos dados de frota exigidos pelo TCE-PB (leiaute a confirmar).
+Fora de escopo nesta versão
+Emissão de NF-e (quem emite é o posto), emissão de empenho (o sistema espelha
+empenhos do sistema contábil), folha de pagamento (o sistema exporta), manutenção
+de frota e telemetria veicular (fase 3).
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 2 of 16
+
+=== PAGE 3 ===
+Rastreamento contínuo de pessoas por GPS. A localização é capturada só em eventos
+(retirada, devolução, confirmação de abastecimento).
+Regras fixas herdadas (permanecem)
+Sem autocadastro: todo usuário é criado por gestor ou administrador.
+Conta única por pessoa, com vários perfis compatíveis e troca de perfil sem novo
+login; "Sair" pede confirmação.
+Código de autorização no formato ABT-AAAA-XXXXXX .
+Nenhum QR code, em nenhuma tela, carteira ou relatório.
+Terminologia fiscal: NF-e e chave de acesso; o termo "Cupom Fiscal" segue
+descontinuado. Precisão adotada: DANFE é a representação impressa da NF-e; a
+chave de acesso tem 44 posições e passa a admitir letras com o CNPJ alfanumérico
+(item D-09).
+O antigo "Relatório de Abastecimento" não volta aos painéis.
+Seleções "Todos" e "Nenhum" padronizadas em filtros.
+Exclusão lógica para todo registro com histórico.
+3. Diagnóstico da documentação original
+A v1.0 descreve bem as funções, mas tem três falhas que impedem o uso seguro em
+administração pública: o saldo de cota pode ser gasto duas vezes, o abastecimento não
+tem lastro em contrato, preço e empenho, e não existe conferência e atesto para a
+liquidação. Os 31 itens abaixo são referidos no restante do documento; a coluna Correção
+indica onde a solução está especificada.
+Gravidade: crítico permite perda financeira, fraude ou ilegalidade direta; alto compromete
+controle, prova ou segurança; médio afeta qualidade de dado ou operação.
+3.1 Críticos
+ID Problema na v1.0 Risco Correção (seção)
+D-
+01
+Saldo conferido na emissão e
+baixado só na validação, por gatilhos
+e contadores mutáveis, ao lado de
+visões de saldo.
+Duas autorizações
+simultâneas sobre o
+mesmo saldo;
+contador e visão
+divergem; não há
+extrato do
+movimento.
+Razão de cotas
+imutável; reserva na
+emissão, consumo na
+confirmação,
+liberação na
+expiração; bloqueio
+de linha e CHECK  de
+saldo não negativo
+(6.4, 7.2).
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 3 of 16
+
+=== PAGE 4 ===
+ID Problema na v1.0 Risco Correção (seção)
+D-
+02
+Cotas só em litros; o posto lança o
+valor livremente; não há preço
+contratado nem empenho.
+Despesa sem prévio
+empenho, vedada
+pelo art. 60 da Lei
+4.320/1964; preço
+acima do
+contratado; saldo
+contratual
+estourado.
+Preço contratado
+vigente por item, com
+histórico de
+apostilamentos;
+espelho de
+empenhos; reserva
+em R$ na emissão;
+bloqueio configurável
+(7.3).
+D-
+03
+O gestor altera e-mail e senha de
+outro usuário.
+Quem conhece a
+senha age pelo
+motorista; perde-se
+o não repúdio de
+que dependem
+multas e
+abastecimentos.
+O gestor só dispara
+redefinição, que
+chega ao titular; e-
+mail novo só vale
+confirmado; MFA nos
+perfis
+administrativos (9.2).
+D-
+04
+Rotinas apagam contas por
+completo, inclusive em lote ( delete-
+user-complete , cleanup-orphan-
+users ).
+Some a identidade
+de quem autorizou,
+abasteceu ou foi
+notificado; contraria
+a regra de exclusão
+lógica da própria
+v1.0.
+Desativação;
+pseudonimização
+após o prazo de
+guarda; exclusão
+física só de conta
+sem nenhum ato
+registrado (9.6).
+D-
+05
+Código ABT estático, sem validade,
+sem vínculo declarado ao posto e
+sem limite de tentativas.
+Código repassado
+por mensagem e
+usado em outro
+veículo; enumeração
+de códigos por
+quem consulta.
+Código de uso único,
+válido só no posto
+escolhido e por
+prazo; limite de
+consultas;
+confirmação bilateral
+pelo motorista (7.1,
+9.4).
+D-
+06
+A seção 3.7 lê a DANFE antes de
+gerar o código; a 4.4 põe os dados
+fiscais depois da confirmação; existe
+ainda
+criar_abastecimento_com_cupom .
+Autorização emitida
+depois do
+abastecimento
+deixa de ser
+autorização; cada
+tela pode
+implementar um
+fluxo diferente.
+Um só fluxo:
+autorização prévia,
+abastecimento,
+confirmação
+bilateral, documento
+fiscal, fechamento e
+atesto (7.1).
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 4 of 16
+
+=== PAGE 5 ===
+ID Problema na v1.0 Risco Correção (seção)
+D-
+07
+Nenhuma etapa da Administração
+confere e atesta o período antes do
+pagamento.
+Liquidação sem
+conferência. O TCE-
+PB pede ao gestor
+conferência diária
+dos comprovantes
+com a NF-e e
+relatórios por
+veículo nos autos da
+despesa (Nota
+Técnica 01/2018-CT,
+itens 4.2 e 4.6).
+Fechamento por
+posto, contrato e
+unidade gestora;
+conciliação
+automática; atesto
+do fiscal; relatório de
+liquidação com hash;
+bloqueio após o
+atesto (7.4).
+D-
+08
+A chave lida por OCR só é conferida
+quanto ao preenchimento.
+Nota de outro
+emitente, de outro
+destinatário ou
+cancelada; NFC-e
+onde a Nota Técnica
+01/2018-CT indica
+NF-e modelo 55 na
+venda de
+combustível a órgão
+público (item 3).
+Conferir dígito
+verificador, modelo,
+CNPJ do emitente
+igual ao do posto,
+destinatário igual ao
+da unidade gestora e
+período; XML
+preferível ao OCR;
+consulta de situação
+na SEFAZ (7.4).
+D-
+09
+A chave é tratada como "44 dígitos"
+e o CNPJ como número.
+Desde 31/07/2026 a
+Receita emite CNPJ
+alfanumérico (IN
+RFB 2.229/2024,
+resumo); a NT
+2026.004 tornou
+alfanuméricos o
+CNPJ e a chave de
+acesso da NF-e.
+Validador numérico
+rejeita nota válida.
+CNPJ em texto [A-
+Z0-9]{12}[0-9]{2}
+e chave em texto de
+44 posições; dígitos
+verificadores pelo
+valor ASCII − 48 em
+módulo 11 (6.6).
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 5 of 16
+
+=== PAGE 6 ===
+3.2 Altos
+ID Problema na v1.0 Risco Correção (seção)
+D-
+10
+"Flex" listado como
+combustível; GNV em
+litros; KM/L para toda a
+frota.
+Máquinas e geradores,
+medidos em horas, ficam
+sem controle; GNV,
+medido em m³, é lançado
+como litro.
+Produto (gasolina comum
+e aditivada, etanol, diesel
+S10 e S500, GNV, Arla 32)
+separado dos
+combustíveis aceitos pelo
+veículo; unidade por
+produto; medidor por
+veículo: hodômetro,
+horímetro ou nenhum (6.3,
+7.8).
+D-11 KM informado sem
+crítica; o cadastro do
+veículo não tem
+capacidade do tanque.
+Abastecimento acima da
+capacidade e
+quilometragem inventada.
+Capacidade obrigatória;
+leitura do medidor sempre
+crescente, com ajuste
+justificado; salto
+implausível bloqueia; foto
+do painel conforme
+política (7.1, 7.7).
+D-
+12
+Relatórios leem
+secretaria, contrato e
+preço do cadastro atual.
+Transferir um veículo de
+secretaria reescreve
+meses passados.
+Cada autorização e
+abastecimento grava
+instantâneo de secretaria,
+unidade gestora, contrato,
+preço e empenho (6.2).
+D-
+13
+"Percursos" e "Controle
+de Uso" registram, de
+formas diferentes, quem
+estava com o veículo.
+Dados conflitantes
+justamente na
+identificação do condutor
+de multa.
+Diário de bordo único:
+sessão de uso (retirada e
+devolução, com medidor e
+checklist) com trechos;
+sobreposição vedada no
+banco (7.5).
+D-
+14
+Abrir o detalhe da multa
+registra "leitura";
+relatório de RH para
+desconto em folha.
+Abrir a tela não prova
+ciência; desconto sem
+contraditório e ampla
+defesa (CF, art. 5º, LV) é
+contestável.
+Ciência expressa;
+processo interno com
+defesa, decisão
+fundamentada e recurso;
+envio ao RH só após
+decisão final ou termo de
+reconhecimento,
+conforme o estatuto local
+(7.6).
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 6 of 16
+
+=== PAGE 7 ===
+ID Problema na v1.0 Risco Correção (seção)
+D-
+15
+Só há um "prazo de
+defesa" genérico.
+Perder os 30 dias do art.
+257, § 7º, do CTB (redação
+da Lei 14.071/2020) para
+indicar o condutor; sendo
+o veículo de pessoa
+jurídica, nova multa (§ 8º).
+Gravar a data-limite
+impressa na notificação de
+autuação e alertar com
+antecedência (7.6).
+D-
+16
+Sete perfis operacionais;
+ninguém atesta nem
+audita; nenhuma regra
+de segregação.
+Quem concede cota
+extraordinária pode ser
+quem a consome; o
+controle interno depende
+de relatórios de quem é
+controlado.
+Perfis Fiscal de Contrato e
+Controle Interno (leitura
+com trilha); "quem solicita
+não aprova"; atesto por
+quem não abasteceu (8.3).
+D-
+17
+O Administrador Global
+busca usuários e
+gerencia perfis de todos
+os entes.
+Operador da plataforma
+com acesso rotineiro a
+dados pessoais de
+servidores de todos os
+municípios.
+Operador sem acesso a
+dados operacionais;
+suporte por acesso
+assistido, autorizado pelo
+administrador do ente,
+temporário e auditado
+(8.4).
+D-
+18
+(Inferência) a interface
+fala direto com o banco,
+protegida só por regras
+por linha; regras de
+negócio espalhadas em
+gatilhos e funções.
+Uma política mal escrita
+expõe outro ente; regra
+dispersa é difícil de testar
+e revisar.
+O navegador fala só com a
+API; o banco mantém as
+regras por linha como
+segunda barreira e as
+invariantes em restrições
+(5.2, 9.3).
+D-
+19
+Não há transparência
+ativa nem exportação ao
+controle externo.
+A Nota Técnica 01/2018-CT
+pede consulta aberta, no
+portal de transparência, à
+execução por veículo,
+período, combustível e
+fornecedor (item 4.8). O
+TCE-PB exige remessa de
+dados de frota dos órgãos
+estaduais (RN-TC 02/2025,
+Ofício Circular 01/2026).
+Módulo de dados abertos
+sem dados pessoais;
+exportador de dados de
+frota com leiaute a
+confirmar no Portal do
+Gestor para municípios
+(7.9).
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 7 of 16
+
+=== PAGE 8 ===
+3.3 Médios
+ID Problema na v1.0 Risco Correção (seção)
+D-
+20
+A foto da DANFE é
+descartada após o OCR.
+Se o OCR errar, não há
+prova do que foi lido; a
+conferência do controle
+externo fica sem lastro.
+Guardar o XML
+(preferível) ou a imagem,
+com hash SHA-256, em
+armazenamento privado e
+com prazo de guarda (7.4).
+D-
+21
+Nada sobre MFA, política
+de senha, limite de
+tentativas, sessão,
+cabeçalhos de
+segurança, backup e
+recuperação.
+Tomada de conta por
+senha fraca ou vazada;
+indisponibilidade sem
+plano de retorno.
+Requisitos das seções 9 e
+13.
+D-
+22
+A secretaria não tem
+CNPJ próprio nem
+unidade gestora.
+Fundos de saúde e de
+educação empenham com
+CNPJ próprio; a NF-e
+precisa sair em nome de
+quem empenha.
+Unidade gestora com
+CNPJ; secretaria vinculada
+a ela; destinatário da NF-e
+conferido contra a unidade
+gestora (6.3, 7.4).
+ID Problema na v1.0 Risco Correção (seção)
+D-
+23
+Cota ordinária pré-gerada
+para 12 meses.
+Limites desatualizados
+quando frota ou
+orçamento mudam;
+destino do saldo não
+usado indefinido.
+Competência aberta por
+rotina mensal
+idempotente, renovando
+a ordinária marcada;
+política de acúmulo por
+ente, padrão sem
+acúmulo (7.2).
+D-
+24
+O modo Somar do lote
+pode ser reaplicado.
+Um clique repetido dobra
+a cota de dezenas de
+veículos.
+Registro de aplicação por
+lote e competência;
+segunda aplicação Somar
+só com justificativa;
+simulação de antes e
+depois (7.2).
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 8 of 16
+
+=== PAGE 9 ===
+ID Problema na v1.0 Risco Correção (seção)
+D-
+25
+Veta qualquer segundo
+abastecimento do veículo
+em 24 h.
+Trava ambulância e
+máquina em turno duplo e
+não detecta fraude de
+volume.
+Política por categoria
+(intervalo mínimo,
+máximo por dia),
+liberação excepcional
+justificada e as regras de
+plausibilidade de D-11
+(7.1).
+D-
+26
+Gatilho calcula KM/L a
+cada abastecimento.
+Média errada com
+abastecimento parcial;
+gatilho altera linha
+editável.
+Cálculo "tanque cheio a
+tanque cheio" em visão,
+com linha de base por
+veículo (6.8).
+D-
+27
+Conflito de agenda só por
+motorista.
+Mesmo veículo em duas
+viagens simultâneas.
+Restrição de exclusão por
+intervalo para motorista e
+para veículo (6.4).
+D-
+28
+Veículo importado sem
+tipo vira locado.
+Cria locado sem contrato,
+contra a própria regra do
+locado.
+Importação em
+quarentena, validada por
+linha e efetivada só sem
+erros (7.8).
+D-
+29
+Alerta de "documentos
+vencidos" sem cadastro
+que os guarde; CNH sem
+bloqueio.
+Veículo sem
+licenciamento, ou
+condutor com CNH
+vencida ou de categoria
+incompatível, abastece e
+circula.
+Documentos do veículo e
+do condutor com
+validade e arquivo;
+bloqueio de autorização e
+de agenda quando
+vencidos ou
+incompatíveis (7.8).
+D-
+30
+Vínculo desativado é
+reativado em vez de
+recriado.
+Perde-se o período em
+que o motorista não podia
+conduzir o veículo.
+Cada período de vínculo
+é uma linha; unicidade só
+entre vínculos vigentes
+(7.8).
+D-
+31
+Carteira digital "estilo
+Gov.br".
+Confusão com documento
+oficial federal.
+Credencial funcional com
+a identidade visual do
+ente e aviso de que não
+substitui a CNH; exibe o
+código de confirmação do
+motorista (12.1).
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 9 of 16
+
+=== PAGE 10 ===
+4. Stack tecnológica
+Recomendação: TypeScript em todas as camadas, sobre PostgreSQL, no mesmo núcleo
+técnico dos demais produtos Justech (Supabase gerenciado e worker Node com pg-
+boss), com uma diferença decisiva: o navegador não fala com o banco, e toda leitura e
+escrita passa por uma API de domínio própria. A robustez deste sistema vem menos da
+linguagem do que de três decisões: invariantes garantidas pelo banco, um único caminho
+de escrita e testes de concorrência obrigatórios.
+4.1 Linguagem
+Linguagem A favor Contra Quando faria
+sentido
+TypeScript
+(Node.js) —
+recomendada
+Uma só linguagem do
+banco ao PWA;
+esquemas de validação
+compartilhados entre
+API e telas; grande
+oferta de
+programadores no
+Brasil; ecossistema
+maduro para PWA,
+WebAuthn, TOTP e
+PDF; mesma base dos
+outros produtos
+Justech.
+Tipos só em
+compilação (exige
+validação em toda
+entrada); tarefas
+pesadas de CPU
+precisam ir para o
+worker.
+Equipe pequena,
+produto web e
+mobile, domínio
+transacional sem
+cálculo pesado: é o
+caso.
+Java ou Kotlin
+(Spring)
+Maturidade,
+transações e
+segurança
+consolidadas; comum
+em sistemas de
+governo.
+Duas linguagens (o
+front continua em
+TypeScript); mais
+cerimônia e
+infraestrutura para
+um ou dois
+programadores.
+Equipe dedicada
+de back-end ou
+exigência expressa
+de cliente.
+C# (.NET) Produtividade e
+tipagem fortes; bom
+ferramental.
+Mesmo custo de duas
+linguagens;
+ecossistema menos
+usado na Justech.
+Equipe já
+experiente em
+.NET.
+Python (Django) Administração pronta e
+desenvolvimento
+rápido.
+Front continua em
+TypeScript; tipagem
+fraca em execução.
+Produto centrado
+em backoffice e
+análise de dados.
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 10 of 16
+
+=== PAGE 11 ===
+4.2 Arranjo da plataforma
+Linguagem A favor Contra Quando faria
+sentido
+Go Desempenho e
+simplicidade
+operacional.
+Mais código para
+CRUD e fluxos; menor
+oferta para sistemas
+de gestão.
+Serviços de alto
+volume, o que não
+é o caso.
+Arranjo Como funciona A favor Contra
+A. Supabase como
+no protótipo
+Navegador acessa o
+banco pela API
+automática com
+regras por linha;
+funções de servidor e
+worker para o resto.
+Mais rápido de
+construir; idêntico
+ao protótipo.
+O perímetro de
+segurança passa a
+ser o conjunto de
+políticas; regras
+dispersas; tokens
+no navegador; fluxo
+antifraude difícil de
+testar ponta a
+ponta.
+B. Pilha própria API própria,
+PostgreSQL
+gerenciado, provedor
+de identidade
+(Keycloak) e
+armazenamento S3
+contratados à parte.
+Controle total, sem
+dependência de
+plataforma de
+terceiros.
+Mais infraestrutura
+para operar; foge do
+núcleo comum da
+Justech.
+C. Núcleo comum
+endurecido —
+recomendado
+Supabase como
+infraestrutura
+(PostgreSQL,
+autenticação,
+arquivos, backup); API
+Fastify como único
+caminho do
+navegador; worker pg-
+boss; regras por linha
+como segunda
+barreira.
+Aproveita o que a
+Justech já opera;
+perimetro único e
+testável; invariantes
+no banco; migra para
+B trocando só a
+infraestrutura.
+Duas camadas de
+autorização para
+manter coerentes
+(API e banco);
+dependência do
+serviço de
+autenticação,
+isolada atrás de
+interface própria.
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 11 of 16
+
+=== PAGE 12 ===
+4.3 Componentes do arranjo C
+Camada Escolha
+Linguagem TypeScript em modo estrito na API, no worker e nos
+aplicativos; SQL e PL/pgSQL para as invariantes do
+banco.
+Banco PostgreSQL 17 ou superior, gerenciado, em região
+no Brasil; extensões btree_gist  e pgcrypto .
+API Node.js na versão LTS vigente; Fastify; validação
+com Zod; contrato OpenAPI 3.1 gerado do código.
+Acesso a dados Kysely (consultas tipadas, tipos gerados do banco)
+e migrações em SQL puro, versionadas; o banco é a
+fonte da verdade do modelo.
+Rotinas pg-boss, fila no próprio PostgreSQL, em processo
+worker separado.
+Identidade Supabase Auth com MFA TOTP; sessão em cookie
+HttpOnly  gerida pela API; nenhum token no
+localStorage . Interface própria permite trocar
+por OIDC (Keycloak, gov.br) sem tocar o domínio.
+Arquivos Armazenamento privado compatível com S3; links
+assinados de curta duração; hash SHA-256 de cada
+arquivo.
+Aplicativos React com Vite; PWA com Workbox; TanStack
+Query e Router; React Hook Form com os mesmos
+esquemas Zod da API; Tailwind e componentes
+acessíveis (Radix).
+Offline IndexedDB (Dexie) com fila de saída, restrita aos
+fluxos da seção 12.3.
+PDF HTML renderizado por Chromium sem interface
+(Playwright) no worker; formato A4 e 80 mm.
+OCR Provedor de IA atrás de adaptador próprio; o
+resultado é sugestão, sempre validado.
+Observabilidade OpenTelemetry; logs estruturados (pino) sem
+dados pessoais; erros no Sentry.
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 12 of 16
+
+=== PAGE 13 ===
+Versões: fixar, no início do projeto, a LTS vigente de cada componente e registrar no
+repositório; atualizar por Renovate com testes verdes.
+5. Arquitetura
+Monólito modular: um único serviço de API com módulos de domínio isolados, um worker
+para rotinas e dois aplicativos web, sobre um PostgreSQL que guarda as invariantes.
+Microsserviços não se justificam para o volume e a equipe previstos; a divisão em
+módulos permite separar um deles depois, se necessário.
+5.1 Visão geral
+5.2 Princípios de engenharia
+1. Um só caminho de escrita. Navegador, API, banco. Nenhuma credencial de banco
+chega ao navegador; a API de dados automática do Supabase fica desativada ou expõe
+um esquema vazio.
+2. Invariantes no banco. Saldo não negativo, cota ordinária única, não sobreposição de
+agenda e de uso, imutabilidade da razão e da auditoria e coerência de escopo dos
+perfis são garantidas por CHECK , UNIQUE  parcial, EXCLUDE , gatilhos e funções
+transacionais. A API não é a única guardiã.
+3. Fatos imutáveis com instantâneo. Autorização, abastecimento, movimento de cota e
+evento de multa não se editam; corrige-se com novo registro (estorno ou retificação).
+Cada fato grava o contexto da época.
+4. Idempotência. Toda escrita sensível aceita Idempotency-Key ; rotinas são
+idempotentes por chave natural (ente e competência, por exemplo).
+5. Transação curta e bloqueio em ordem fixa. Operações de saldo bloqueiam linhas
+sempre na mesma ordem (ordinária antes de extraordinária, depois por identificador),
+o que evita impasse entre transações.
+Camada Escolha
+Infraestrutura Contêineres da API e do worker em provedor com
+região no Brasil; CDN e WAF na frente da API e dos
+aplicativos.
+Qualidade GitHub Actions; Renovate; Semgrep ou CodeQL;
+gitleaks; testes contra PostgreSQL real
+(Testcontainers); Playwright para ponta a ponta.
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 13 of 16
+
+=== PAGE 14 ===
+6. Outbox transacional. Notificações e integrações são gravadas na mesma transação
+do fato e despachadas pelo worker: não se notifica o que não aconteceu nem se perde
+o que aconteceu.
+7. Tempo do servidor. timestamptz  sempre; competência no fuso do ente; a hora do
+celular é apenas informativa.
+8. Parametrização por ente. Validade da autorização, intervalo mínimo, modo de
+controle de empenho, modelo fiscal e política de acúmulo ficam em tabela própria,
+com padrões seguros.
+9. Privacidade desde a concepção. Dado pessoal mínimo, mascarado por padrão;
+localização só em eventos.
+10. Tudo auditado. Ator, papel ativo, ente, origem, antes e depois.
+5.3 Módulos de domínio
+Cada módulo só escreve nas próprias tabelas; outro módulo que precise alterar esses
+dados chama o serviço do dono. Leituras cruzadas para relatórios usam visões.
+Módulo Responsabilidade Tabelas principais
+identidade Usuários, papéis com escopo,
+dispositivos do motorista,
+sessões
+usuarios , atribuicoes_papel ,
+dispositivos_motorista
+organização Entes, unidades gestoras,
+secretarias, parâmetros
+entes , unidades_gestoras ,
+secretarias , parametros_ente
+frota Veículos, documentos, leituras
+de medidor, importação
+veiculos , documentos ,
+leituras_medidor , importacoes
+condutores Motoristas, CNH, cursos,
+vínculos com veículos
+motoristas , motorista_cursos ,
+vinculos_motorista_veiculo
+fornecimento Fornecedores, postos,
+contratos, itens, preços,
+empenhos
+fornecedores , postos , contratos ,
+contrato_itens , contrato_precos ,
+empenhos
+cotas Cotas de secretaria e de
+veículo, lotes, razão
+cotas_secretaria , cotas_veiculo ,
+lotes_distribuicao ,
+movimentos_cota
+abastecimento Autorizações, reservas,
+abastecimentos, confirmações
+autorizacoes ,
+autorizacao_reservas ,
+abastecimentos
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 14 of 16
+
+=== PAGE 15 ===
+5.4 Estrutura do repositório
+Monorepo com pnpm, no mesmo padrão dos demais produtos Justech.
+/apps
+  /api        Fastify: módulos, rotas, políticas de acesso, sessão (BFF)
+  /worker     pg-boss: rotinas, PDF, OCR, notificações, integrações
+  /campo      PWA do motorista e do frentista
+  /gestao     painel web dos perfis de gestão e do posto
+/packages
+  /contratos  esquemas Zod e tipos compartilhados (origem do OpenAPI)
+  /dominio    regras puras: cálculos, máquinas de estado, validadores
+  /ui         componentes acessíveis, tokens, filtros Todos/Nenhum
+  /pdf        modelos de relatórios e recibos
+/db
+  /migrations SQL versionado (0001_*.sql), nunca editado depois de aplicado
+  /tests      testes SQL das invariantes
+  /seeds      catálogos e dados de demonstração
+/infra        infraestrutura como código, Dockerfiles, pipelines
+/docs         este documento, decisões de arquitetura (ADR), runbooks
+Módulo Responsabilidade Tabelas principais
+fiscal Notas fiscais, fechamentos,
+atestos
+notas_fiscais , fechamentos
+operação Agenda, sessões de uso,
+trechos
+agendamentos , agendamento_paradas ,
+sessoes_uso , trechos
+multas Infrações, processo interno,
+ressarcimento
+multas , multa_eventos ,
+ressarcimentos
+integridade Regras e ocorrências de
+anomalia
+ocorrencias_integridade
+comunicação Notificações, push, alertas,
+outbox
+notificacoes , push_assinaturas ,
+alertas , outbox
+auditoria Trilha encadeada e âncoras
+diárias
+auditoria , auditoria_ancoras
+relatórios Geração assíncrona e
+verificação de autenticidade
+relatorios_gerados
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 15 of 16
+
+=== PAGE 16 ===
+5.5 Ambientes e implantação
+Ambientes: desenvolvimento (Docker Compose com PostgreSQL local), homologação
+(dados fictícios, mesma versão de banco da produção) e produção. Dado real só vai
+para homologação anonimizado.
+Pipeline: lint, tipos, testes unitários, testes SQL, integração com PostgreSQL real e
+ponta a ponta; só então imagem publicada.
+Papéis de banco: o pipeline aplica migrações com o papel dono do esquema; API e
+worker usam papéis sem DDL e sem BYPASSRLS  (6.7).
+Migrações sem parada: expandir, migrar dados e só depois remover, em versões
+distintas.
+Ente ativo: escolhido no seletor de perfil, junto com o papel; uma pessoa com papéis
+em dois entes alterna entre eles sem novo login.
+Projeto de Engenharia de Software — Gestão de Combustível e Frota Municipal
+Page 16 of 16
+

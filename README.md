@@ -1,0 +1,53 @@
+# GestFrota — Sistema de Gestão de Combustível e Frota Municipal
+
+Sistema SaaS multiente para controle do ciclo completo do combustível da frota municipal, da cota ao atesto para pagamento, diário de bordo e integridade com dados isolados por município e trilha de auditoria encadeada com SHA-256.
+
+## 🚀 Arquitetura (Monólito Modular com Monorepo pnpm)
+
+O projeto segue a especificação técnica formal (novembro/2026), com TypeScript de ponta a ponta sobre PostgreSQL 17+:
+
+```
+/apps
+  /api          Fastify: módulos de domínio, rotas, BFF, RLS e autenticação
+  /worker       pg-boss: rotinas assíncronas, PDF, OCR, outbox e integrações
+  /campo        PWA do motorista e frentista (offline com Dexie IndexedDB)
+  /gestao       Painel web administrativo, contratos, frotas e integridade
+/packages
+  /contratos    Contratos Zod compartilhados e tipos (OpenAPI 3.1)
+  /dominio      Regras puras de negócio, máquinas de estado, validação NT 2026.004
+  /ui           Design system, tokens e componentes acessíveis
+  /pdf          Modelos de relatórios e comprovantes com Playwright
+/db
+  /migrations   Migrações SQL versionadas (0001_*.sql)
+  /tests        Testes executáveis de banco e invariantes críticas
+  /seeds        Dados iniciais de catálogos e demonstração
+/infra          Dockerfiles, docker-compose.yml e scripts de infraestrutura
+/docs           Documentação técnica, proposta e ADRs
+```
+
+## 🔒 Invariantes Críticas Garantidas pelo Banco
+
+1. **Razão de Cotas Imutável (D-01):** Movimentações de reserva, consumo e estorno com `CHECK (saldo >= 0)` e ordenação estrita de bloqueio de linhas (`SELECT FOR UPDATE`).
+2. **Isolamento Multiente RLS (D-18):** Row Level Security com injeção de contexto de sessão (`app.current_ente_id`).
+3. **Auditoria Encadeada com SHA-256:** Tabela imutável de eventos com encadeamento criptográfico e âncoras diárias.
+4. **Restrições de Exclusão (D-27):** `EXCLUDE USING gist` para impedir sobreposição temporal de viagens ou uso do mesmo veículo/motorista.
+5. **NF-e e CNPJ Alfanumérico (D-09):** Compatível com a IN RFB 2.229/2024 e NT 2026.004 (Módulo 11 ASCII - 48).
+
+## 🛠️ Como Iniciar o Ambiente Local
+
+### Pré-requisitos:
+* Docker & Docker Compose
+* Node.js >= 20.x (LTS)
+* pnpm >= 9.x
+
+### Passo a passo:
+```bash
+# 1. Subir o PostgreSQL 17 com extensões
+pnpm docker:up
+
+# 2. Rodar as migrações SQL
+pnpm db:migrate
+
+# 3. Executar os testes de invariantes do banco
+pnpm db:test
+```
