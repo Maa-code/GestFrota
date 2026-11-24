@@ -21,6 +21,10 @@ DECLARE
     v_aut_id UUID := gen_random_uuid();
     v_cota RECORD;
     v_erro_disparado BOOLEAN;
+    v_audit_id1 BIGINT;
+    v_audit_id2 BIGINT;
+    v_hash1 TEXT;
+    v_hash2_prev TEXT;
 BEGIN
     RAISE NOTICE '>>> INICIANDO BATERIA DE TESTES DE INVARIANTES DO GESTFROTA <<<';
 
@@ -138,21 +142,17 @@ BEGIN
     RAISE NOTICE '[TESTE 3] Auditoria Encadeada com SHA-256 e Imutabilidade...';
 
     INSERT INTO auditoria (ente_id, entidade, acao, dados_novos, hash_anterior, hash_atual)
-    VALUES (v_ente_id, 'veiculos', 'CRIACAO', '{"placa": "ABC1D23"}'::jsonb, '', '');
+    VALUES (v_ente_id, 'veiculos', 'CRIACAO', '{"placa": "ABC1D23"}'::jsonb, '', '')
+    RETURNING id INTO v_audit_id1;
 
     INSERT INTO auditoria (ente_id, entidade, acao, dados_novos, hash_anterior, hash_atual)
-    VALUES (v_ente_id, 'cotas_veiculo', 'RESERVA', '{"litros": 40}'::jsonb, '', '');
+    VALUES (v_ente_id, 'cotas_veiculo', 'RESERVA', '{"litros": 40}'::jsonb, '', '')
+    RETURNING id INTO v_audit_id2;
 
-    -- Verificar que o hash_anterior do segundo evento é igual ao hash_atual do primeiro evento
-    DO $audit_check$
-    DECLARE
-        v_hash1 TEXT;
-        v_hash2_prev TEXT;
-    BEGIN
-        SELECT hash_atual INTO v_hash1 FROM auditoria ORDER BY id ASC LIMIT 1;
-        SELECT hash_anterior INTO v_hash2_prev FROM auditoria ORDER BY id DESC LIMIT 1;
-        ASSERT v_hash1 = v_hash2_prev, 'FALHA: Encadeamento criptográfico de auditoria quebrado!';
-    END $audit_check$;
+    -- Verificar que o hash_anterior do segundo evento é exatamente igual ao hash_atual do primeiro evento
+    SELECT hash_atual INTO v_hash1 FROM auditoria WHERE id = v_audit_id1;
+    SELECT hash_anterior INTO v_hash2_prev FROM auditoria WHERE id = v_audit_id2;
+    ASSERT v_hash1 = v_hash2_prev, 'FALHA: Encadeamento criptográfico de auditoria quebrado!';
 
     -- Tentar atualizar auditoria (deve ser rejeitado)
     v_erro_disparado := FALSE;

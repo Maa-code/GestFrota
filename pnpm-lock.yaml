@@ -298,6 +298,9 @@ importers:
       '@gestfrota/dominio':
         specifier: workspace:*
         version: link:../../packages/dominio
+      pg:
+        specifier: ^8.13.3
+        version: 8.23.1
       pg-boss:
         specifier: ^10.1.5
         version: 10.4.2
@@ -305,6 +308,9 @@ importers:
       '@types/node':
         specifier: ^24.11.0
         version: 24.19.2
+      '@types/pg':
+        specifier: ^8.11.11
+        version: 8.23.1
       typescript:
         specifier: ^5.8.0
         version: 5.9.3

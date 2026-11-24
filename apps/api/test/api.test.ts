@@ -202,7 +202,10 @@ describe('GestFrota API - Ciclo Completo de Abastecimento e RLS', () => {
     }
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
-    const cota = body.cotas[0];
+    const anoAtual = new Date().getFullYear();
+    const mesAtual = new Date().getMonth() + 1;
+    const cota = body.cotas.find((c: any) => c.competencia_ano === anoAtual && c.competencia_mes === mesAtual);
+    assert.ok(cota, 'Cota da competência atual deve existir');
 
     // O saldo inicial era 500 L. Reservou 50, consumiu 45, devolveu 5. Saldo final = 455 L.
     assert.strictEqual(Number(cota.saldo_disponivel_litros), 455.0);
