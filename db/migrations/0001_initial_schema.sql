@@ -685,7 +685,7 @@ BEGIN
         FOR UPDATE;
 
         UPDATE cotas_veiculo
-        SET saldo_reservado_litros = saldo_reservado_litros - v_movimento.litros,
+        SET saldo_reservado_litros = GREATEST(0, saldo_reservado_litros - v_movimento.litros),
             saldo_disponivel_litros = saldo_disponivel_litros + v_movimento.litros,
             atualizado_em = now()
         WHERE id = v_cota.id;

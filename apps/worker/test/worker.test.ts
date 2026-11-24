@@ -17,12 +17,15 @@ describe('GestFrota Worker - Rotinas Assíncronas e Invariantes', () => {
   const ugId = '22222222-2222-2222-2222-222222222222';
 
   before(async () => {
-    // Garante saldo no veículo
+    // Limpa autorizações pendentes de testes anteriores e garante saldo no veículo
+    await pool.query(`UPDATE autorizacoes SET status = 'EXPIRADA' WHERE status = 'RESERVADA'`);
+    const ano = new Date().getFullYear();
+    const mes = new Date().getMonth() + 1;
     await pool.query(`
       UPDATE cotas_veiculo
       SET saldo_disponivel_litros = 500.0, saldo_reservado_litros = 0.0
-      WHERE veiculo_id = $1
-    `, [veiculoId]);
+      WHERE veiculo_id = $1 AND competencia_ano = $2 AND competencia_mes = $3
+    `, [veiculoId, ano, mes]);
   });
 
   after(async () => {
@@ -58,10 +61,13 @@ describe('GestFrota Worker - Rotinas Assíncronas e Invariantes', () => {
     });
 
     // Confere que reservou 30 L
+    const ano = new Date().getFullYear();
+    const mes = new Date().getMonth() + 1;
     const cotaAntes = await pool.query(`
       SELECT saldo_disponivel_litros, saldo_reservado_litros
-      FROM cotas_veiculo WHERE veiculo_id = $1
-    `, [veiculoId]);
+      FROM cotas_veiculo 
+      WHERE veiculo_id = $1 AND competencia_ano = $2 AND competencia_mes = $3
+    `, [veiculoId, ano, mes]);
     assert.strictEqual(Number(cotaAntes.rows[0].saldo_reservado_litros), 30.0);
 
     // 1.2 Executa o job de expiração do Worker
@@ -78,8 +84,9 @@ describe('GestFrota Worker - Rotinas Assíncronas e Invariantes', () => {
     // 1.4 Verifica se a cota reservada zerou e voltou para disponível
     const cotaDepois = await pool.query(`
       SELECT saldo_disponivel_litros, saldo_reservado_litros
-      FROM cotas_veiculo WHERE veiculo_id = $1
-    `, [veiculoId]);
+      FROM cotas_veiculo 
+      WHERE veiculo_id = $1 AND competencia_ano = $2 AND competencia_mes = $3
+    `, [veiculoId, ano, mes]);
     assert.strictEqual(Number(cotaDepois.rows[0].saldo_reservado_litros), 0.0);
     assert.strictEqual(Number(cotaDepois.rows[0].saldo_disponivel_litros), 500.0);
 

@@ -9,6 +9,7 @@ import { organizacaoRoutes } from './modules/organizacao/index.js';
 import { frotaRoutes } from './modules/frota/index.js';
 import { fornecimentoRoutes } from './modules/fornecimento/index.js';
 import { cotasRoutes } from './modules/cotas/index.js';
+import { auditoriaRoutes } from './modules/auditoria/index.js';
 
 export function buildApp() {
   const fastify = Fastify({
@@ -64,6 +65,7 @@ export function buildApp() {
   fastify.register(frotaRoutes, { prefix: '/api/frota' });
   fastify.register(fornecimentoRoutes, { prefix: '/api/fornecimento' });
   fastify.register(cotasRoutes, { prefix: '/api/cotas' });
+  fastify.register(auditoriaRoutes, { prefix: '/api/auditoria' });
 
   return fastify;
 }
