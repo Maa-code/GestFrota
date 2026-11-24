@@ -10,13 +10,14 @@
   },
   "scripts": {
     "build": "pnpm -r run build",
-    "test": "pnpm --filter @gestfrota/api run test && pnpm --filter @gestfrota/worker run test && node infra/scripts/run-db-tests.js",
+    "test": "pnpm --filter @gestfrota/contratos test && pnpm --filter @gestfrota/dominio test && pnpm --filter @gestfrota/api run test && pnpm --filter @gestfrota/worker run test && node infra/scripts/run-db-tests.js",
     "lint": "pnpm -r run lint",
     "docker:up": "docker compose -f infra/docker/docker-compose.yml up -d",
     "docker:down": "docker compose -f infra/docker/docker-compose.yml down",
     "docker:logs": "docker compose -f infra/docker/docker-compose.yml logs -f",
     "db:wait": "node infra/scripts/wait-for-db.js",
     "db:migrate": "node infra/scripts/migrate.js",
+    "db:seed": "node infra/scripts/seed.js",
     "db:test": "node infra/scripts/run-db-tests.js"
   },
   "devDependencies": {
