@@ -3,10 +3,10 @@ import pg from 'pg';
 const { Pool } = pg;
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5433/gestfrota_dev',
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5433/gestfrota_dev',
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
 
 pool.on('error', (err) => {

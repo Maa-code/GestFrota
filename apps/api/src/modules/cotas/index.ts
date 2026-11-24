@@ -271,4 +271,34 @@ export async function cotasRoutes(fastify: FastifyInstance) {
 
     return reply.send(result);
   });
+
+  // 5. Consultar Autorização por Código ABT (Frentista / Motorista)
+  fastify.get<{ Params: { codigoAbt: string } }>('/autorizacao/:codigoAbt', {
+    preHandler: [requireRoles(['FRENTISTA', 'MOTORISTA', 'GESTOR_GERAL', 'ADMIN_GERAL', 'GESTOR_SECRETARIA'])]
+  }, async (request, reply) => {
+    const enteId = request.enteId!;
+    const codigoAbt = request.params.codigoAbt.toUpperCase().trim();
+
+    const res = await queryTenant(enteId, `
+      SELECT a.id, a.codigo_abt, a.status, a.validade_limite, a.litros_solicitados,
+             a.tipo_combustivel, a.instantaneo_preco_unitario, a.valor_estimado,
+             v.id as veiculo_id, v.placa, v.marca_modelo, v.capacidade_tanque_litros,
+             v.tipo_medidor,
+             p.nome as posto_nome,
+             u.nome as motorista_nome
+      FROM autorizacoes a
+      JOIN veiculos v ON v.id = a.veiculo_id
+      JOIN postos p ON p.id = a.posto_id
+      JOIN motoristas m ON m.id = a.motorista_id
+      JOIN usuarios u ON u.id = m.usuario_id
+      WHERE a.codigo_abt = $1
+      LIMIT 1
+    `, [codigoAbt]);
+
+    if (res.rows.length === 0) {
+      return reply.status(404).send({ erro: 'Código de autorização não encontrado' });
+    }
+
+    return reply.send(res.rows[0]);
+  });
 }
