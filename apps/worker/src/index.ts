@@ -15,7 +15,7 @@ export class GestFrotaWorker {
   private intervalIds: NodeJS.Timeout[] = [];
   private isRunning = false;
 
-  constructor(private connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5433/gestfrota_dev') {}
+  constructor(private connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5433/gestfrota_dev') {}
 
   async start(options: WorkerOptions = { enableScheduler: true }) {
     if (this.isRunning) return;
