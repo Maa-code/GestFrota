@@ -36,18 +36,63 @@ O projeto segue a especificação técnica formal (novembro/2026), com TypeScrip
 ## 🛠️ Como Iniciar o Ambiente Local
 
 ### Pré-requisitos:
-* Docker & Docker Compose
+* Docker Desktop & Docker Compose
 * Node.js >= 20.x (LTS)
 * pnpm >= 9.x
 
 ### Passo a passo:
 ```bash
-# 1. Subir o PostgreSQL 17 com extensões
+# 1. Subir o PostgreSQL 17 (configurado na porta 5433 para evitar conflitos locais no Windows)
 pnpm docker:up
 
-# 2. Rodar as migrações SQL
+# 2. Rodar as migrações SQL e popular o banco com a semente de demonstração
 pnpm db:migrate
+pnpm db:seed
 
-# 3. Executar os testes de invariantes do banco
+# 3. Executar os testes de invariantes do banco e pacotes
 pnpm db:test
+pnpm test
 ```
+
+### Inicializando os Aplicativos:
+
+```bash
+# Terminal 1: Backend Fastify API (porta 3000 com documentação OpenAPI Swagger em /docs)
+pnpm --filter @gestfrota/api dev
+
+# Terminal 2: Worker Assíncrono pg-boss (expiração de autorizações, renovação mensal de cotas, âncoras SHA-256 e outbox)
+pnpm --filter @gestfrota/worker dev
+
+# Terminal 3: Painel Web de Gestão (porta 5173 - React 19 + Tailwind CSS v4)
+pnpm --filter @gestfrota/gestao dev
+
+# Terminal 4: PWA de Campo (porta 5174 - Motoristas e Frentistas com suporte Offline Dexie)
+pnpm --filter @gestfrota/campo dev
+```
+
+---
+
+## 👥 Credenciais de Demonstração (Seed)
+
+| Papel | E-mail | Senha | Aplicação |
+|---|---|---|---|
+| **Administrador Geral** | `admin@demo.gov.br` | `SenhaForte123!` | Painel de Gestão (`:5173`) |
+| **Condutor / Motorista** | `motorista@demo.gov.br` | `SenhaForte123!` | PWA de Campo (`:5174`) |
+| **Frentista de Posto** | `frentista@demo.gov.br` | `SenhaForte123!` | PWA de Campo (`:5174`) |
+
+---
+
+## 📱 PWA de Campo (`apps/campo`)
+
+O aplicativo de campo foi desenvolvido como PWA (Progressive Web App) com capacidade offline nativa:
+- **Fluxo do Motorista:**
+  - Solicitação de abastecimento com geração de código alfanumérico em alto contraste `ABT-AAAA-XXXXXX` (estritamente sem QR Code, conforme Seção 2).
+  - Confirmação bilateral presencial (D-05 / D-06).
+  - Credencial funcional com aviso expresso de que "NÃO substitui a CNH" (D-31).
+- **Fluxo do Frentista:**
+  - Validação de código ABT com exibição de placa, tipo de combustível e limite de preço contratado (D-02).
+  - Registro de abastecimento na bomba com travas de capacidade máxima do tanque (D-11) e leitura do hodômetro/horímetro.
+- **Resiliência Offline:**
+  - Armazenamento em fila local com Dexie (IndexedDB) quando sem sinal de celular.
+  - Sincronização automática em background ao restabelecer conectividade de rede.
+  - Modal de confirmação obrigatório antes de encerrar sessão (Logout seguro).
