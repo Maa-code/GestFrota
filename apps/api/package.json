@@ -2,22 +2,31 @@
   "name": "@gestfrota/api",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "node --watch src/index.ts"
+    "dev": "node --watch src/index.ts",
+    "test": "node --experimental-strip-types --test test/api.test.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/cors": "^11.4.3",
+    "@fastify/swagger": "^9.9.5",
+    "@fastify/swagger-ui": "^6.1.5",
     "@gestfrota/contratos": "workspace:*",
     "@gestfrota/dominio": "workspace:*",
     "fastify": "^5.2.1",
+    "fastify-type-provider-zod": "^7.0.0",
+    "kysely": "^0.29.9",
     "pg": "^8.13.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^24.11.0",
     "@types/pg": "^8.11.11",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.0"
   }
 }
