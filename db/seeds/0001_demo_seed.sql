@@ -12,8 +12,13 @@ DECLARE
     v_user_admin_id UUID := '44444444-4444-4444-4444-444444444441'::UUID;
     v_user_motorista_id UUID := '44444444-4444-4444-4444-444444444442'::UUID;
     v_user_frentista_id UUID := '44444444-4444-4444-4444-444444444443'::UUID;
+
+    v_user_demo_admin_id UUID := '44444444-4444-4444-4444-444444444451'::UUID;
+    v_user_demo_mot_id UUID := '44444444-4444-4444-4444-444444444452'::UUID;
+    v_user_demo_frent_id UUID := '44444444-4444-4444-4444-444444444453'::UUID;
     
     v_motorista_id UUID := '55555555-5555-5555-5555-555555555555'::UUID;
+    v_motorista_demo_id UUID := '55555555-5555-5555-5555-555555555556'::UUID;
     v_veiculo_id UUID := '66666666-6666-6666-6666-666666666666'::UUID;
     
     v_fornecedor_id UUID := '77777777-7777-7777-7777-777777777777'::UUID;
@@ -72,6 +77,38 @@ BEGIN
 
     INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel)
     VALUES (v_user_frentista_id, v_ente_id, 'FRENTISTA')
+    ON CONFLICT DO NOTHING;
+
+    -- Usuários Demo Rápidos (demo.gov.br)
+    -- Admin Demo
+    INSERT INTO usuarios (id, ente_id, cpf, nome, email, telefone)
+    VALUES (v_user_demo_admin_id, v_ente_id, '000.111.222-44', 'Admin Demo', 'admin@demo.gov.br', '83999994444')
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel)
+    VALUES (v_user_demo_admin_id, v_ente_id, 'GESTOR_GERAL')
+    ON CONFLICT DO NOTHING;
+
+    -- Motorista Demo
+    INSERT INTO usuarios (id, ente_id, cpf, nome, email, telefone)
+    VALUES (v_user_demo_mot_id, v_ente_id, '444.555.666-88', 'João Silva Motorista', 'motorista@demo.gov.br', '83999995555')
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel, secretaria_id)
+    VALUES (v_user_demo_mot_id, v_ente_id, 'MOTORISTA', v_sec_id)
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO motoristas (id, ente_id, usuario_id, numero_cnh, categoria_cnh, cnh_validade)
+    VALUES (v_motorista_demo_id, v_ente_id, v_user_demo_mot_id, '12345678900', 'D', '2029-12-31')
+    ON CONFLICT (id) DO NOTHING;
+
+    -- Frentista Demo
+    INSERT INTO usuarios (id, ente_id, cpf, nome, email, telefone)
+    VALUES (v_user_demo_frent_id, v_ente_id, '888.999.000-22', 'Lucas Frentista Demo', 'frentista@demo.gov.br', '83999996666')
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel)
+    VALUES (v_user_demo_frent_id, v_ente_id, 'FRENTISTA')
     ON CONFLICT DO NOTHING;
 
     -- 4. Veículo
