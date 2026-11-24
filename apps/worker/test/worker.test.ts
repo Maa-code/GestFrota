@@ -99,8 +99,12 @@ describe('GestFrota Worker - Rotinas Assíncronas e Invariantes', () => {
   });
 
   it('2. Deve renovar cotas mensais de forma idempotente (D-23 / D-24)', async () => {
-    // Usa uma competência futura única para cada execução
-    const anoFuturo = 2030 + Math.floor(Math.random() * 50);
+    // Busca o próximo ano nunca utilizado para garantir determinismo
+    const maxAnoRes = await pool.query(`
+      SELECT COALESCE(MAX(competencia_ano), 2026) + 1 as proximo_ano
+      FROM cotas_veiculo WHERE veiculo_id = $1
+    `, [veiculoId]);
+    const anoFuturo = Number(maxAnoRes.rows[0].proximo_ano);
 
     // 2.1 Primeira execução para competência futura
     const res1 = await executarRenovacaoCotasMensais(anoFuturo, 1);
