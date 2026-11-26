@@ -142,8 +142,8 @@ sequenceDiagram
 
 1. Após o frentista terminar de abastecer e registrar o apontamento na bomba:
 2. No seu aplicativo, acesse a aba **Bilateral**.
-3. Confirme o Identificador da Autorização e confira os dados exibidos (litros abastecidos na bomba e hodômetro registrado).
-4. Toque em **"Confirmar Abastecimento"**.
+3. O sistema já exibirá automaticamente na seção **"Aguardando sua confirmação"** o card do abastecimento com o código ABT, litros abastecidos na bomba, valor total e leitura do medidor (se preferir ou estiver offline, também é possível digitar manualmente o mesmo código **`ABT-2026-XXXXXX`** entregue ao frentista).
+4. Confira se os números conferem com a bomba/painel e toque em **"Confirmar Este Abastecimento"**.
 5. **Resultado:** O abastecimento é formalmente liquidado. Se você pediu 40 L e abasteceu 38.5 L, o saldo residual de 1.5 L retorna automaticamente para o veículo.
 
 ### Operação 3.3: Exibir a Credencial Funcional Digital (D-31)

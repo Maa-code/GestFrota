@@ -226,20 +226,23 @@ export async function cotasRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ erro: 'Dados inválidos', detalhes: parse.error.errors });
     }
 
-    const { autorizacaoId } = parse.data;
+    const { autorizacaoId, codigoAbt } = parse.data;
     const enteId = request.enteId!;
 
     const result = await withTenant(enteId, async (client) => {
+      const filtroColuna = autorizacaoId ? 'a.id = $1' : 'a.codigo_abt = $1';
+      const filtroValor = autorizacaoId || codigoAbt!;
+
       const autRes = await client.query(`
-        SELECT a.id, a.status, ab.id as abastecimento_id, ab.litros_abastecidos
+        SELECT a.id, a.codigo_abt, a.status, ab.id as abastecimento_id, ab.litros_abastecidos
         FROM autorizacoes a
         JOIN abastecimentos ab ON ab.autorizacao_id = a.id
-        WHERE a.id = $1
+        WHERE ${filtroColuna}
         FOR UPDATE
-      `, [autorizacaoId]);
+      `, [filtroValor]);
 
       if (autRes.rows.length === 0) {
-        throw new Error('Abastecimento não encontrado para esta autorização');
+        throw new Error('Abastecimento não encontrado para esta autorização ou código ABT');
       }
 
       const aut = autRes.rows[0];
@@ -265,11 +268,56 @@ export async function cotasRoutes(fastify: FastifyInstance) {
       return {
         mensagem: 'Abastecimento confirmado bilateralmente com sucesso. Saldo de cotas atualizado.',
         autorizacaoId: aut.id,
+        codigoAbt: aut.codigo_abt,
         abastecimentoId: aut.abastecimento_id,
       };
     });
 
     return reply.send(result);
+  });
+
+  // 4.1 Listar Abastecimentos Pendentes de Confirmação Bilateral pelo Motorista
+  fastify.get('/pendentes-motorista', {
+    preHandler: [requireRoles(['MOTORISTA', 'GESTOR_GERAL'])]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const enteId = request.enteId!;
+    const usuarioId = request.session!.id;
+    const papel = request.session!.perfilAtivo.papel;
+
+    const motRes = await queryTenant(enteId, `
+      SELECT id FROM motoristas WHERE usuario_id = $1 LIMIT 1
+    `, [usuarioId]);
+
+    if (motRes.rows.length === 0 && papel !== 'GESTOR_GERAL') {
+      return reply.send([]);
+    }
+
+    const motoristaId = motRes.rows[0]?.id || null;
+    const params: any[] = [];
+    let filtroMotorista = '';
+    if (motoristaId) {
+      params.push(motoristaId);
+      filtroMotorista = 'AND a.motorista_id = $1';
+    }
+
+    const res = await queryTenant(enteId, `
+      SELECT a.id as autorizacao_id, a.codigo_abt, a.status, a.tipo_combustivel,
+             a.litros_solicitados, a.criado_em as autorizado_em,
+             v.placa, v.marca_modelo, v.tipo_medidor,
+             p.nome as posto_nome,
+             ab.id as abastecimento_id, ab.litros_abastecidos,
+             ab.preco_unitario_aplicado, ab.valor_total,
+             ab.medidor_leitura, ab.criado_em as abastecido_em
+      FROM autorizacoes a
+      JOIN abastecimentos ab ON ab.autorizacao_id = a.id
+      JOIN veiculos v ON v.id = a.veiculo_id
+      JOIN postos p ON p.id = a.posto_id
+      WHERE a.status = 'CONFIRMADA_FRENTISTA'
+      ${filtroMotorista}
+      ORDER BY ab.criado_em DESC
+    `, params);
+
+    return reply.send(res.rows);
   });
 
   // 5. Consultar Autorização por Código ABT (Frentista / Motorista)

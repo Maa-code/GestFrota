@@ -207,7 +207,12 @@ export const ConfirmarFrentistaSchema = z.object({
 });
 export type ConfirmarFrentista = z.infer<typeof ConfirmarFrentistaSchema>;
 
-export const ConfirmarMotoristaSchema = z.object({
-  autorizacaoId: z.string().uuid(),
-});
+export const ConfirmarMotoristaSchema = z
+  .object({
+    autorizacaoId: z.string().uuid().optional(),
+    codigoAbt: CodigoAbtSchema.optional(),
+  })
+  .refine((data) => Boolean(data.autorizacaoId || data.codigoAbt), {
+    message: 'Informe o código ABT ou o identificador da autorização',
+  });
 export type ConfirmarMotorista = z.infer<typeof ConfirmarMotoristaSchema>;

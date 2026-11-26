@@ -4,7 +4,8 @@ import {
   validarCnpjAlfanumerico, 
   CnpjSchema, 
   ChaveNfeSchema, 
-  CodigoAbtSchema 
+  CodigoAbtSchema,
+  ConfirmarMotoristaSchema
 } from '../dist/index.js';
 
 describe('Pacote Contratos - Invariantes e Validações Zod', () => {
@@ -56,5 +57,21 @@ describe('Pacote Contratos - Invariantes e Validações Zod', () => {
     const abtInvalido = 'XYZ-2026-123456';
     const parsedInv = CodigoAbtSchema.safeParse(abtInvalido);
     assert.strictEqual(parsedInv.success, false);
+  });
+
+  it('5. ConfirmarMotoristaSchema aceita codigoAbt ou autorizacaoId e rejeita vazio', () => {
+    const porAbt = ConfirmarMotoristaSchema.safeParse({ codigoAbt: 'abt-2026-f98a1b' });
+    assert.strictEqual(porAbt.success, true);
+    if (porAbt.success) {
+      assert.strictEqual(porAbt.data.codigoAbt, 'ABT-2026-F98A1B');
+    }
+
+    const porUuid = ConfirmarMotoristaSchema.safeParse({
+      autorizacaoId: '11111111-1111-1111-1111-111111111111',
+    });
+    assert.strictEqual(porUuid.success, true);
+
+    const vazio = ConfirmarMotoristaSchema.safeParse({});
+    assert.strictEqual(vazio.success, false);
   });
 });

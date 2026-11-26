@@ -168,7 +168,18 @@ describe('GestFrota API - Ciclo Completo de Abastecimento e RLS', () => {
     assert.strictEqual(body.abastecimento.litros_abastecidos, '45.000');
   });
 
-  it('8. Motorista realiza confirmação bilateral no aplicativo (D-05 / D-06)', async () => {
+  it('8. Motorista lista pendências e realiza confirmação bilateral com código ABT (D-05 / D-06)', async () => {
+    const pendentesRes = await app.inject({
+      method: 'GET',
+      url: '/api/cotas/pendentes-motorista',
+      headers: {
+        cookie: motoristaCookie,
+      },
+    });
+    assert.strictEqual(pendentesRes.statusCode, 200);
+    const pendentes = JSON.parse(pendentesRes.body);
+    assert.ok(pendentes.some((p: any) => p.codigo_abt === codigoAbt && p.autorizacao_id === autorizacaoId));
+
     const res = await app.inject({
       method: 'POST',
       url: '/api/cotas/confirmar-motorista',
@@ -176,7 +187,7 @@ describe('GestFrota API - Ciclo Completo de Abastecimento e RLS', () => {
         cookie: motoristaCookie,
       },
       payload: {
-        autorizacaoId,
+        codigoAbt,
       },
     });
 
@@ -186,6 +197,7 @@ describe('GestFrota API - Ciclo Completo de Abastecimento e RLS', () => {
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
     assert.strictEqual(body.autorizacaoId, autorizacaoId);
+    assert.strictEqual(body.codigoAbt, codigoAbt);
   });
 
   it('9. Extrato do veículo reflete consumo real e liberação da sobra no razão imutável (D-01)', async () => {
