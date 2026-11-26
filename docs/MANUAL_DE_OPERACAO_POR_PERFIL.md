@@ -83,12 +83,13 @@ sequenceDiagram
 2. Verifique o número do contrato, fornecedor/posto credenciado, período de vigência e itens licitados.
 3. **Ponto Crítico:** Confira o valor do **Preço Vigente (R$/L)** registrado para cada produto (Gasolina Comum, Diesel S-10, Etanol). É esse valor que atua como **teto máximo** na validação de cada abastecimento efetuado no posto.
 
-### Operação 2.4: Acompanhar o Razão de Cotas Imutável (D-01)
-1. Acesse **Cotas**.
-2. Selecione o veículo desejado para abrir o **Extrato do Razão Imutável**:
+### Operação 2.4: Acompanhar Abastecimentos e o Razão de Cotas Imutável (D-01)
+1. No menu lateral, acesse **Cotas & Abastecimentos**.
+2. Selecione o veículo desejado para visualizar os cards da competência atual, além de duas tabelas:
+   * **Histórico de Abastecimentos Realizados:** Lista cada abastecimento feito na pista com Data/Hora, Código ABT, Posto, Motorista, Frentista, Volume (L), Preço Unitário (R$/L), Valor Total (R$), Medidor e status da Confirmação Bilateral (`Confirmada Bilateral` ou `Aguardando Motorista`).
+   * **Extrato Imutável de Movimentações:** Tabela contábil com os lançamentos de `RESERVA`, `CONSUMO`, `LIBERACAO` e `AJUSTE`, data/hora, saldo anterior e saldo posterior.
    * **Saldo Disponível (L):** Litragem livre para novos abastecimentos no mês corrente.
    * **Saldo Reservado (L):** Litragem bloqueada temporariamente por autorizações ABT emitidas que estão aguardando abastecimento na bomba.
-   * **Lançamentos Contábeis:** Tabela auditada contendo tipo de movimentação (`RESERVA`, `CONSUMO`, `ESTORNO`, `AJUSTE`), data/hora, saldo anterior e saldo posterior.
 
 ### Operação 2.5: Verificar a Integridade da Trilha de Auditoria (SHA-256)
 1. Acesse **Auditoria**.

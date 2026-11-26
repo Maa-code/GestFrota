@@ -229,4 +229,31 @@ describe('GestFrota API - Ciclo Completo de Abastecimento e RLS', () => {
     assert.ok(tipos.includes('CONSUMO'), 'Deve conter movimento de CONSUMO');
     assert.ok(tipos.includes('LIBERACAO'), 'Deve conter movimento de LIBERACAO');
   });
+
+  it('10. Gestor visualiza o abastecimento confirmado no histórico do Painel de Gestão', async () => {
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        email: 'admin@gestfrota.gov.br',
+        senha: 'senha-segura-123',
+      },
+    });
+    assert.strictEqual(loginRes.statusCode, 200);
+    const adminCookie = loginRes.headers['set-cookie'] as string;
+
+    const abRes = await app.inject({
+      method: 'GET',
+      url: `/api/cotas/abastecimentos?veiculoId=${veiculoId}`,
+      headers: {
+        cookie: adminCookie,
+      },
+    });
+    assert.strictEqual(abRes.statusCode, 200);
+    const lista = JSON.parse(abRes.body);
+    const item = lista.find((x: any) => x.codigo_abt === codigoAbt);
+    assert.ok(item, 'Abastecimento deve constar no histórico do gestor');
+    assert.strictEqual(item.status_autorizacao, 'CONFIRMADA_BILATERAL');
+    assert.strictEqual(Number(item.litros_abastecidos), 45.0);
+  });
 });

@@ -349,4 +349,41 @@ export async function cotasRoutes(fastify: FastifyInstance) {
 
     return reply.send(res.rows[0]);
   });
+
+  // 6. Listar Abastecimentos Realizados (Painel de Gestão)
+  fastify.get<{ Querystring: { veiculoId?: string } }>('/abastecimentos', {
+    preHandler: [requireRoles(['ADMIN_GERAL', 'GESTOR_GERAL', 'GESTOR_SECRETARIA', 'FISCAL_CONTRATO', 'CONTROLE_INTERNO'])]
+  }, async (request, reply) => {
+    const enteId = request.enteId!;
+    const veiculoId = request.query.veiculoId;
+
+    const params: any[] = [];
+    let filtroVeiculo = '';
+    if (veiculoId) {
+      params.push(veiculoId);
+      filtroVeiculo = 'WHERE ab.veiculo_id = $1';
+    }
+
+    const res = await queryTenant(enteId, `
+      SELECT ab.id, ab.autorizacao_id, ab.litros_abastecidos, ab.preco_unitario_aplicado,
+             ab.valor_total, ab.medidor_leitura, ab.confirmado_motorista_em, ab.criado_em,
+             a.codigo_abt, a.status as status_autorizacao, a.tipo_combustivel, a.litros_solicitados,
+             v.id as veiculo_id, v.placa, v.marca_modelo, v.tipo_medidor,
+             p.nome as posto_nome,
+             um.nome as motorista_nome,
+             uf.nome as frentista_nome
+      FROM abastecimentos ab
+      JOIN autorizacoes a ON a.id = ab.autorizacao_id
+      JOIN veiculos v ON v.id = ab.veiculo_id
+      JOIN postos p ON p.id = ab.posto_id
+      JOIN motoristas m ON m.id = ab.motorista_id
+      JOIN usuarios um ON um.id = m.usuario_id
+      JOIN usuarios uf ON uf.id = ab.frentista_usuario_id
+      ${filtroVeiculo}
+      ORDER BY ab.criado_em DESC
+      LIMIT 100
+    `, params);
+
+    return reply.send(res.rows);
+  });
 }
