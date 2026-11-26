@@ -7,6 +7,7 @@ export function Cotas() {
   const [veiculoSelecionadoId, setVeiculoSelecionadoId] = useState<string>('');
   const [extrato, setExtrato] = useState<{ cotas: any[]; movimentos: any[] } | null>(null);
   const [abastecimentos, setAbastecimentos] = useState<any[]>([]);
+  const [erroAbastecimentos, setErroAbastecimentos] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
   useEffect(() => {
@@ -23,10 +24,14 @@ export function Cotas() {
   const carregarDados = useCallback(async () => {
     if (!veiculoSelecionadoId) return;
     setCarregando(true);
+    setErroAbastecimentos(null);
     try {
       const [dadosExtrato, dadosAbastecimentos] = await Promise.all([
         apiFetch<any>(`/api/cotas/veiculo/${veiculoSelecionadoId}`),
-        apiFetch<any[]>(`/api/cotas/abastecimentos?veiculoId=${veiculoSelecionadoId}`).catch(() => []),
+        apiFetch<any[]>(`/api/cotas/abastecimentos?veiculoId=${veiculoSelecionadoId}`).catch((err: any) => {
+          setErroAbastecimentos(err?.message || 'Erro ao carregar histórico de abastecimentos');
+          return [];
+        }),
       ]);
       setExtrato(dadosExtrato);
       setAbastecimentos(dadosAbastecimentos);
@@ -129,6 +134,12 @@ export function Cotas() {
           <Fuel className="w-5 h-5 text-brand-600" />
           <h4 className="font-bold text-slate-900 text-sm">Histórico de Abastecimentos Realizados</h4>
         </div>
+
+        {erroAbastecimentos && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+            {erroAbastecimentos}
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-700">

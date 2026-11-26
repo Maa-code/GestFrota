@@ -23,7 +23,8 @@ export async function fornecimentoRoutes(fastify: FastifyInstance) {
   fastify.get('/contratos', async (request: FastifyRequest, reply: FastifyReply) => {
     const enteId = request.enteId!;
     const res = await queryTenant(enteId, `
-      SELECT c.id, c.numero_contrato, c.ano, c.data_inicio, c.data_fim, c.valor_total,
+      SELECT DISTINCT ON (c.id, ci.id)
+             c.id, c.numero_contrato, c.ano, c.data_inicio, c.data_fim, c.valor_total,
              f.razao_social as fornecedor_nome,
              ci.id as contrato_item_id, ci.produto, ci.quantidade_licitada,
              cp.preco_unitario as preco_vigente
@@ -32,7 +33,7 @@ export async function fornecimentoRoutes(fastify: FastifyInstance) {
       JOIN contrato_itens ci ON ci.contrato_id = c.id
       JOIN contrato_precos cp ON cp.contrato_item_id = ci.id AND cp.vigencia_fim IS NULL
       WHERE c.ativo = true
-      ORDER BY c.numero_contrato ASC
+      ORDER BY c.id, ci.id, cp.vigencia_inicio DESC
     `);
     return reply.send(res.rows);
   });

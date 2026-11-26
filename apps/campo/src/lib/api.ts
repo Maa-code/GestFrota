@@ -6,6 +6,7 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      'X-GestFrota-App': 'campo',
       ...options.headers,
     },
   });

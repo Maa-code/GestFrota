@@ -54,8 +54,11 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel)
-    VALUES (v_user_admin_id, v_ente_id, 'GESTOR_GERAL')
-    ON CONFLICT DO NOTHING;
+    SELECT v_user_admin_id, v_ente_id, 'GESTOR_GERAL'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM atribuicoes_papel
+        WHERE usuario_id = v_user_admin_id AND ente_id = v_ente_id AND papel = 'GESTOR_GERAL'
+    );
 
     -- Motorista
     INSERT INTO usuarios (id, ente_id, cpf, nome, email, telefone)
@@ -63,8 +66,11 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel, secretaria_id)
-    VALUES (v_user_motorista_id, v_ente_id, 'MOTORISTA', v_sec_id)
-    ON CONFLICT DO NOTHING;
+    SELECT v_user_motorista_id, v_ente_id, 'MOTORISTA', v_sec_id
+    WHERE NOT EXISTS (
+        SELECT 1 FROM atribuicoes_papel
+        WHERE usuario_id = v_user_motorista_id AND ente_id = v_ente_id AND papel = 'MOTORISTA'
+    );
 
     INSERT INTO motoristas (id, ente_id, usuario_id, numero_cnh, categoria_cnh, cnh_validade)
     VALUES (v_motorista_id, v_ente_id, v_user_motorista_id, '98765432100', 'D', '2028-12-31')
@@ -76,8 +82,11 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel)
-    VALUES (v_user_frentista_id, v_ente_id, 'FRENTISTA')
-    ON CONFLICT DO NOTHING;
+    SELECT v_user_frentista_id, v_ente_id, 'FRENTISTA'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM atribuicoes_papel
+        WHERE usuario_id = v_user_frentista_id AND ente_id = v_ente_id AND papel = 'FRENTISTA'
+    );
 
     -- Usuários Demo Rápidos (demo.gov.br)
     -- Admin Demo
@@ -86,8 +95,11 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel)
-    VALUES (v_user_demo_admin_id, v_ente_id, 'GESTOR_GERAL')
-    ON CONFLICT DO NOTHING;
+    SELECT v_user_demo_admin_id, v_ente_id, 'GESTOR_GERAL'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM atribuicoes_papel
+        WHERE usuario_id = v_user_demo_admin_id AND ente_id = v_ente_id AND papel = 'GESTOR_GERAL'
+    );
 
     -- Motorista Demo
     INSERT INTO usuarios (id, ente_id, cpf, nome, email, telefone)
@@ -95,8 +107,11 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel, secretaria_id)
-    VALUES (v_user_demo_mot_id, v_ente_id, 'MOTORISTA', v_sec_id)
-    ON CONFLICT DO NOTHING;
+    SELECT v_user_demo_mot_id, v_ente_id, 'MOTORISTA', v_sec_id
+    WHERE NOT EXISTS (
+        SELECT 1 FROM atribuicoes_papel
+        WHERE usuario_id = v_user_demo_mot_id AND ente_id = v_ente_id AND papel = 'MOTORISTA'
+    );
 
     INSERT INTO motoristas (id, ente_id, usuario_id, numero_cnh, categoria_cnh, cnh_validade)
     VALUES (v_motorista_demo_id, v_ente_id, v_user_demo_mot_id, '12345678900', 'D', '2029-12-31')
@@ -108,8 +123,11 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO atribuicoes_papel (usuario_id, ente_id, papel)
-    VALUES (v_user_demo_frent_id, v_ente_id, 'FRENTISTA')
-    ON CONFLICT DO NOTHING;
+    SELECT v_user_demo_frent_id, v_ente_id, 'FRENTISTA'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM atribuicoes_papel
+        WHERE usuario_id = v_user_demo_frent_id AND ente_id = v_ente_id AND papel = 'FRENTISTA'
+    );
 
     -- 4. Veículo
     INSERT INTO veiculos (
@@ -143,8 +161,11 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO contrato_precos (contrato_item_id, preco_unitario, vigencia_inicio)
-    VALUES (v_item_id, 5.8900, now() - interval '30 days')
-    ON CONFLICT DO NOTHING;
+    SELECT v_item_id, 5.8900, now() - interval '30 days'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM contrato_precos
+        WHERE contrato_item_id = v_item_id AND vigencia_fim IS NULL
+    );
 
     -- 6. Cotas do Veículo para a competência atual
     INSERT INTO cotas_veiculo (

@@ -13,7 +13,7 @@ for (const file of files) {
   const filePath = resolve(migrationsDir, file);
   console.log(`-> Aplicando ${file}`);
   const content = readFileSync(filePath, 'utf8');
-  execSync('docker exec -i gestfrota-postgres psql -U postgres -d gestfrota_dev', {
+  execSync('docker exec -i -e PGCLIENTENCODING=UTF8 gestfrota-postgres psql -U postgres -d gestfrota_dev', {
     input: content,
     stdio: ['pipe', 'inherit', 'inherit'],
   });

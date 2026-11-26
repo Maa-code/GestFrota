@@ -92,7 +92,10 @@ export async function sincronizarFilaOffline(): Promise<{ sincronizados: number;
       const res = await fetch(item.endpoint, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-GestFrota-App': 'campo',
+        },
         body: JSON.stringify(item.payload),
       });
 

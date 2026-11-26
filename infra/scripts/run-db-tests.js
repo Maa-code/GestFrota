@@ -7,7 +7,7 @@ console.log(`Executando testes de invariantes: ${testSqlPath}`);
 
 try {
   const content = readFileSync(testSqlPath, 'utf8');
-  execSync('docker exec -i gestfrota-postgres psql -U postgres -d gestfrota_dev', {
+  execSync('docker exec -i -e PGCLIENTENCODING=UTF8 gestfrota-postgres psql -U postgres -d gestfrota_dev', {
     input: content,
     stdio: ['pipe', 'inherit', 'inherit']
   });

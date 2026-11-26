@@ -9,6 +9,7 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
     credentials: 'include', // Envia e recebe cookie HttpOnly
     headers: {
       'Content-Type': 'application/json',
+      'X-GestFrota-App': 'gestao',
       ...options.headers,
     },
   });

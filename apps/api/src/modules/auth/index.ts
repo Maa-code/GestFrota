@@ -17,6 +17,13 @@ declare module 'fastify' {
 
 const SESSION_COOKIE_NAME = 'gestfrota_session';
 
+function getSessionCookieName(request: FastifyRequest): string {
+  const appHeader = String(request.headers['x-gestfrota-app'] || '').toLowerCase();
+  if (appHeader === 'gestao') return 'gestfrota_session_gestao';
+  if (appHeader === 'campo') return 'gestfrota_session_campo';
+  return SESSION_COOKIE_NAME;
+}
+
 export async function authRoutes(fastify: FastifyInstance) {
   // 1. Login
   fastify.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -74,7 +81,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     // Serializa sessão em cookie HttpOnly seguro (sem tokens no localStorage)
     const sessionToken = Buffer.from(JSON.stringify(sessao)).toString('base64');
-    reply.setCookie(SESSION_COOKIE_NAME, sessionToken, {
+    reply.setCookie(getSessionCookieName(request), sessionToken, {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -113,7 +120,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     request.session.perfilAtivo = perfilEncontrado;
 
     const sessionToken = Buffer.from(JSON.stringify(request.session)).toString('base64');
-    reply.setCookie(SESSION_COOKIE_NAME, sessionToken, {
+    reply.setCookie(getSessionCookieName(request), sessionToken, {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -136,8 +143,8 @@ export async function authRoutes(fastify: FastifyInstance) {
   });
 
   // 4. Logout
-  fastify.post('/logout', async (_request: FastifyRequest, reply: FastifyReply) => {
-    reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+  fastify.post('/logout', async (request: FastifyRequest, reply: FastifyReply) => {
+    reply.clearCookie(getSessionCookieName(request), { path: '/' });
     return reply.send({ mensagem: 'Sessão encerrada com sucesso' });
   });
 }
@@ -146,7 +153,7 @@ export async function authRoutes(fastify: FastifyInstance) {
  * Hook para restaurar sessão a partir do Cookie HttpOnly e injetar tenant context
  */
 export async function sessionMiddleware(request: FastifyRequest) {
-  const cookieVal = request.cookies[SESSION_COOKIE_NAME];
+  const cookieVal = request.cookies[getSessionCookieName(request)];
   if (!cookieVal) return;
 
   try {
