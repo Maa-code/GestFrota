@@ -81,7 +81,19 @@ Também é possível executar baterias isoladas:
 
 ## 🖥️ 5. Inicializando as Aplicações e Serviços
 
-Para utilizar a interface completa, abra **4 terminais** (ou 4 abas no Windows Terminal) posicionados em `D:\GestFrota`:
+### ⚡ Opção Rápida (1 Clique — Recomendada)
+Você pode subir o banco PostgreSQL (caso ainda não esteja ativo) e **todos os 4 módulos simultaneamente em uma única janela** dando um duplo clique no arquivo **`iniciar-gestfrota.bat`** na pasta raiz (`D:\GestFrota\iniciar-gestfrota.bat`) ou executando no terminal:
+
+```powershell
+pnpm dev
+```
+
+*(Para encerrar todos os serviços juntos, basta pressionar `Ctrl + C` nessa janela.)*
+
+---
+
+### 🧩 Opção Manual (4 Terminais Separados)
+Se preferir acompanhar os logs de cada serviço em abas separadas do Windows Terminal, abra **4 terminais** posicionados em `D:\GestFrota`:
 
 ```mermaid
 flowchart TD

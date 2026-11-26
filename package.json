@@ -9,6 +9,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "dev": "node infra/scripts/dev-all.js",
     "build": "pnpm -r run build",
     "test": "pnpm --filter @gestfrota/contratos test && pnpm --filter @gestfrota/dominio test && pnpm --filter @gestfrota/api run test && pnpm --filter @gestfrota/worker run test && node infra/scripts/run-db-tests.js",
     "lint": "pnpm -r run lint",
